@@ -68,6 +68,10 @@ def save_user_data(user_data, usage_time):
     
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(csv_path, index=False)
+    
+    # Also save to a timestamped file for backup
+    backup_path = f"user_data/user_registrations_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    df.to_csv(backup_path, index=False)
 
 # Registration form
 if not st.session_state.registered:
@@ -113,6 +117,38 @@ if not st.session_state.registered:
                 st.session_state.registered = True
                 st.session_state.start_time = datetime.datetime.now()
                 st.rerun()
+
+# Add a download button for administrators
+if st.session_state.registered:
+    # Add a section for administrators
+    st.sidebar.title("Administrator Tools")
+    
+    # Get admin password from environment variable
+    admin_password = os.environ.get("ADMIN_PASSWORD", "default_password")
+    
+    # Password protection for admin access
+    entered_password = st.sidebar.text_input("Enter Admin Password", type="password")
+    
+    if entered_password == admin_password:
+        st.sidebar.success("Admin access granted!")
+        
+        # Download button for the CSV file
+        if os.path.exists("user_data/user_registrations.csv"):
+            with open("user_data/user_registrations.csv", "rb") as f:
+                st.sidebar.download_button(
+                    label="📥 Download User Data",
+                    data=f,
+                    file_name="user_registrations.csv",
+                    mime="text/csv"
+                )
+        
+        # Display the most recent entries
+        st.sidebar.subheader("Recent Registrations")
+        if os.path.exists("user_data/user_registrations.csv"):
+            df = pd.read_csv("user_data/user_registrations.csv")
+            st.sidebar.dataframe(df.tail(5))  # Show last 5 entries
+    elif entered_password:  # Only show error if a password was entered
+        st.sidebar.error("Incorrect password")
 
 # Show title and description only after registration
 if st.session_state.registered:
