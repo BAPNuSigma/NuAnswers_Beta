@@ -226,16 +226,16 @@ def extract_text_from_csv(file_path):
 
 def extract_text_from_excel(file_path):
     text = ""
-    if file_path.endswith('.xlsx'):
-        workbook = openpyxl.load_workbook(file_path)
-        for sheet in workbook:
-            for row in sheet.iter_rows():
-                text += " | ".join([str(cell.value) if cell.value else "" for cell in row]) + "\n"
-    else:  # .xls
-        workbook = xlrd.open_workbook(file_path)
-        for sheet in workbook.sheets():
-            for row in range(sheet.nrows):
-                text += " | ".join([str(cell.value) if cell.value else "" for cell in sheet.row(row)]) + "\n"
+    try:
+        # Read all sheets
+        excel_file = pd.ExcelFile(file_path)
+        for sheet_name in excel_file.sheet_names:
+            df = pd.read_excel(excel_file, sheet_name=sheet_name)
+            text += f"\nSheet: {sheet_name}\n"
+            text += df.to_string(index=False) + "\n"
+    except Exception as e:
+        st.error(f"Error reading Excel file: {str(e)}")
+        return None
     return text
 
 # Initialize session state for uploaded documents and search
