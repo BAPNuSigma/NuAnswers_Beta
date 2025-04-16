@@ -49,7 +49,7 @@ def save_user_data(user_data, usage_time):
 # Registration form
 if not st.session_state.registered:
     st.title("📝 Registration Form")
-    st.write("Please complete the registration form to use the Accounting & Finance Tutor.")
+    st.write("Please complete the registration form to use NuAnswers.")
     
     with st.form("registration_form"):
         full_name = st.text_input("Full Name")
