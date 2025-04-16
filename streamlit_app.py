@@ -93,9 +93,9 @@ if not st.session_state.registered:
 
 # Show title and description only after registration
 if st.session_state.registered:
-    st.title("💬 Accounting & Finance Tutor")
+    st.title("💬 NuAnswers")
     st.write(
-        "Hello! I'm your Accounting & Finance Tutor. I'm here to help you understand concepts and work through problems. "
+        "Hello! I am NuAnswers, Beta Alpha Psi: Nu Sigma Chapter's AI Tutor Bot. I'm here to help you understand concepts and work through problems. "
         "Remember, I won't give you direct answers, but I'll guide you to find them yourself. "
         "I can help you with accounting equations, financial ratios, financial statements, and time value of money concepts."
     )
