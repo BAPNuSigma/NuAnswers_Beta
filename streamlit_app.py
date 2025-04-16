@@ -134,11 +134,29 @@ if st.session_state.registered:
         "I can help you with accounting equations, financial ratios, financial statements, and time value of money concepts."
     )
 
-    # Get the API key from secrets.toml
-    openai_api_key = st.secrets.get("OPENAI_API_KEY")
+    # Get the API key from environment variable or secrets
+    openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
-    if not openai_api_key or openai_api_key == "your-api-key-here":
-        st.error("Please configure your OpenAI API key in .streamlit/secrets.toml")
+    if not openai_api_key:
+        st.error("""
+        ⚠️ OpenAI API Key not configured!
+        
+        To use NuAnswers, you need to:
+        1. Get an API key from OpenAI (https://platform.openai.com/api-keys)
+        2. Add it as an environment variable:
+           - Key: OPENAI_API_KEY
+           - Value: your-api-key-here
+        3. Restart the application
+        
+        If you're deploying on Render:
+        1. Go to your Render dashboard
+        2. Select your service
+        3. Go to the "Environment" tab
+        4. Add a new environment variable:
+           - Key: OPENAI_API_KEY
+           - Value: your-api-key-here
+        5. Redeploy your service
+        """)
         st.stop()
 
     # Create an OpenAI client.
