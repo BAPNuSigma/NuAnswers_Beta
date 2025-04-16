@@ -368,12 +368,6 @@ if st.session_state.registered:
                     if confirm_cols[1].button("Cancel", key=f"cancel_delete_{i}"):
                         st.session_state.doc_to_delete = None
                         st.rerun()
-    
-    st.write(
-        "Hello! I am NuAnswers, Beta Alpha Psi: Nu Sigma Chapter's AI Tutor Bot. I'm here to help you understand concepts and work through problems. "
-        "Remember, I won't give you direct answers, but I'll guide you to find them yourself. "
-        "I can help you with accounting equations, financial ratios, financial statements, and time value of money concepts."
-    )
 
     # Get the API key from environment variable or secrets
     openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -400,25 +394,29 @@ if st.session_state.registered:
         """)
         st.stop()
 
-    # Create an OpenAI client.
+    # Create an OpenAI client
     client = OpenAI(api_key=openai_api_key)
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
+    # Create a session state variable to store the chat messages
     if "messages" not in st.session_state:
         st.session_state.messages = [
             {"role": "assistant", "content": "Hello! I'm your Accounting & Finance Tutor. I'm here to help you understand concepts and work through problems. What would you like to work on today?"}
         ]
 
-    # Display the existing chat messages via `st.chat_message`.
+    st.write(
+        "Hello! I am NuAnswers, Beta Alpha Psi: Nu Sigma Chapter's AI Tutor Bot. I'm here to help you understand concepts and work through problems. "
+        "Remember, I won't give you direct answers, but I'll guide you to find them yourself. "
+        "I can help you with accounting equations, financial ratios, financial statements, and time value of money concepts."
+    )
+
+    # Display the existing chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
+    # Create a chat input field
     if prompt := st.chat_input("What would you like to work on today?"):
-        # Store and display the current prompt.
+        # Store and display the current prompt
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -430,7 +428,7 @@ if st.session_state.registered:
                                  for doc in st.session_state.uploaded_documents])
             context = f"Here is the context from uploaded documents:\n\n{context}\n\n"
 
-        # Generate a response using the OpenAI API with a system message to enforce tutoring behavior
+        # Generate a response using the OpenAI API
         stream = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -465,8 +463,7 @@ Example of bad tutoring:
             stream=True,
         )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
+        # Stream the response
         with st.chat_message("assistant"):
             response = st.write_stream(stream)
         st.session_state.messages.append({"role": "assistant", "content": response})
