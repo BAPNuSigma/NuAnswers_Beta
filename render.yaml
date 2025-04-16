@@ -9,6 +9,8 @@ services:
         value: 3.9.0
       - key: OPENAI_API_KEY
         value: ${OPENAI_API_KEY}
+      - key: ADMIN_PASSWORD
+        value: ${ADMIN_PASSWORD}
     healthCheckPath: /
     autoDeploy: true
     plan: free
