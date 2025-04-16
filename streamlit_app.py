@@ -123,8 +123,12 @@ if st.session_state.registered:
     # Add a section for administrators
     st.sidebar.title("Administrator Tools")
     
-    # Get admin password from environment variable
-    admin_password = os.environ.get("ADMIN_PASSWORD", "default_password")
+    # Get admin password from environment variable or secrets
+    admin_password = os.environ.get("ADMIN_PASSWORD") or st.secrets.get("ADMIN_PASSWORD")
+    
+    if not admin_password:
+        st.sidebar.error("Admin password not configured. Please set ADMIN_PASSWORD in environment variables or secrets.toml")
+        st.stop()
     
     # Password protection for admin access
     entered_password = st.sidebar.text_input("Enter Admin Password", type="password")
