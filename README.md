@@ -73,7 +73,12 @@ streamlit run streamlit_app.py
 3. Add environment variables:
    - `OPENAI_API_KEY`
    - `ADMIN_PASSWORD`
-4. Deploy the service
+4. Configure HTTPS:
+   - Render automatically provides SSL/TLS certificates
+   - Wait a few minutes after deployment for the certificate to be issued
+   - Access the app using `https://` instead of `http://`
+   - If you see a certificate warning, wait a few minutes and refresh
+5. Deploy the service
 
 ## 🔧 Configuration
 
@@ -122,6 +127,10 @@ The system collects:
 - Secure API key management
 - User data encryption
 - Session management
+- HTTPS encryption
+- Strict Transport Security (HSTS)
+- Secure cookie handling
+- Input validation and sanitization
 
 ## 🤝 Contributing
 We welcome contributions! Please feel free to submit pull requests.
@@ -133,3 +142,18 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Beta Alpha Psi: Nu Sigma Chapter
 - OpenAI for GPT API
 - Streamlit for the web framework
+
+## 🔐 Troubleshooting
+
+### SSL/HTTPS Issues
+If you see a certificate warning:
+1. Make sure you're using `https://` in the URL
+2. Wait a few minutes after deployment for the certificate to be issued
+3. Clear your browser cache and refresh
+4. If the issue persists, contact Render support
+
+### Security Best Practices
+1. Always use HTTPS when accessing the application
+2. Keep your API keys secure and never share them
+3. Regularly update your admin password
+4. Monitor the application logs for any suspicious activity
