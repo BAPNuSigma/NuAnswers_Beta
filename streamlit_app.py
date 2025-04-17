@@ -13,6 +13,35 @@ import csv
 import xlrd
 import openpyxl
 
+# Set security headers
+st.set_page_config(
+    page_title="NuAnswers",
+    page_icon="📚",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Configure security headers
+headers = {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-XSS-Protection": "1; mode=block",
+    "Content-Security-Policy": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https:;",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+}
+
+# Apply security headers
+for header, value in headers.items():
+    st.markdown(f"""
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {{
+                document.getElementsByTagName('head')[0].setAttribute('{header}', '{value}');
+            }});
+        </script>
+    """, unsafe_allow_html=True)
+
 # Tutoring hours configuration
 TUTORING_HOURS = {
     "Monday": [("10:30", "12:30")],    # 10:30 AM - 12:30 PM
