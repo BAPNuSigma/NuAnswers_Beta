@@ -12,6 +12,7 @@ import pptx
 import csv
 import xlrd
 import openpyxl
+import io
 
 # Set security headers
 st.set_page_config(
@@ -72,24 +73,15 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "user_data" not in st.session_state:
     st.session_state.user_data = {}
+if "registration_data" not in st.session_state:
+    st.session_state.registration_data = pd.DataFrame(columns=[
+        "timestamp", "full_name", "student_id", "email", "grade", "campus",
+        "major", "course_name", "course_id", "professor", "usage_time_minutes"
+    ])
 
 # Function to save user data and usage time
 def save_user_data(user_data, usage_time):
-    # Create data directory if it doesn't exist
-    if not os.path.exists("user_data"):
-        os.makedirs("user_data")
-    
-    # Create or load the CSV file
-    csv_path = "user_data/user_registrations.csv"
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-    else:
-        df = pd.DataFrame(columns=[
-            "timestamp", "full_name", "student_id", "email", "grade", "campus",
-            "major", "course_name", "course_id", "professor", "usage_time_minutes"
-        ])
-    
-    # Add new user data
+    # Create new row
     new_row = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "full_name": user_data["full_name"],
@@ -104,12 +96,26 @@ def save_user_data(user_data, usage_time):
         "usage_time_minutes": usage_time
     }
     
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_csv(csv_path, index=False)
-    
-    # Also save to a timestamped file for backup
-    backup_path = f"user_data/user_registrations_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    df.to_csv(backup_path, index=False)
+    # Add to session state DataFrame
+    st.session_state.registration_data = pd.concat([
+        st.session_state.registration_data,
+        pd.DataFrame([new_row])
+    ], ignore_index=True)
+
+    # Try to save to filesystem if available (backup)
+    try:
+        if not os.path.exists("user_data"):
+            os.makedirs("user_data")
+        
+        # Save main CSV
+        csv_path = "user_data/user_registrations.csv"
+        st.session_state.registration_data.to_csv(csv_path, index=False)
+        
+        # Save backup
+        backup_path = f"user_data/user_registrations_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        st.session_state.registration_data.to_csv(backup_path, index=False)
+    except Exception as e:
+        st.warning(f"Could not save to filesystem (this is normal in cloud deployment): {str(e)}")
 
 # Registration form
 if not st.session_state.registered:
@@ -174,21 +180,35 @@ if st.session_state.registered:
     if entered_password == admin_password:
         st.sidebar.success("Admin access granted!")
         
-        # Download button for the CSV file
-        if os.path.exists("user_data/user_registrations.csv"):
-            with open("user_data/user_registrations.csv", "rb") as f:
-                st.sidebar.download_button(
-                    label="📥 Download User Data",
-                    data=f,
-                    file_name="user_registrations.csv",
-                    mime="text/csv"
-                )
+        # Create download buttons for both CSV and Excel
+        if not st.session_state.registration_data.empty:
+            # CSV Download
+            csv = st.session_state.registration_data.to_csv(index=False)
+            st.sidebar.download_button(
+                label="📥 Download as CSV",
+                data=csv,
+                file_name="user_registrations.csv",
+                mime="text/csv"
+            )
+            
+            # Excel Download
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                st.session_state.registration_data.to_excel(writer, index=False)
+            st.sidebar.download_button(
+                label="📊 Download as Excel",
+                data=buffer.getvalue(),
+                file_name="user_registrations.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         
         # Display the most recent entries
         st.sidebar.subheader("Recent Registrations")
-        if os.path.exists("user_data/user_registrations.csv"):
-            df = pd.read_csv("user_data/user_registrations.csv")
-            st.sidebar.dataframe(df.tail(5))  # Show last 5 entries
+        if not st.session_state.registration_data.empty:
+            st.sidebar.dataframe(
+                st.session_state.registration_data.tail(5),
+                hide_index=True
+            )
     elif entered_password:  # Only show error if a password was entered
         st.sidebar.error("Incorrect password")
 
