@@ -270,7 +270,35 @@ if st.session_state.registered:
         The bot will be available after the tutoring session ends.
         """)
         st.stop()
-    
+
+    # Get the API key from environment variable or secrets
+    openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+
+    if not openai_api_key:
+        st.error("""
+        ⚠️ OpenAI API Key not configured!
+        
+        To use NuAnswers, you need to:
+        1. Get an API key from OpenAI (https://platform.openai.com/api-keys)
+        2. Add it as an environment variable:
+           - Key: OPENAI_API_KEY
+           - Value: your-api-key-here
+        3. Restart the application
+        
+        If you're deploying on Render:
+        1. Go to your Render dashboard
+        2. Select your service
+        3. Go to the "Environment" tab
+        4. Add a new environment variable:
+           - Key: OPENAI_API_KEY
+           - Value: your-api-key-here
+        5. Redeploy your service
+        """)
+        st.stop()
+
+    # Create an OpenAI client
+    client = OpenAI(api_key=openai_api_key)
+
     # File upload section
     st.subheader("📄 Upload Course Materials")
     uploaded_files = st.file_uploader(
@@ -368,34 +396,6 @@ if st.session_state.registered:
                     if confirm_cols[1].button("Cancel", key=f"cancel_delete_{i}"):
                         st.session_state.doc_to_delete = None
                         st.rerun()
-
-    # Get the API key from environment variable or secrets
-    openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-
-    if not openai_api_key:
-        st.error("""
-        ⚠️ OpenAI API Key not configured!
-        
-        To use NuAnswers, you need to:
-        1. Get an API key from OpenAI (https://platform.openai.com/api-keys)
-        2. Add it as an environment variable:
-           - Key: OPENAI_API_KEY
-           - Value: your-api-key-here
-        3. Restart the application
-        
-        If you're deploying on Render:
-        1. Go to your Render dashboard
-        2. Select your service
-        3. Go to the "Environment" tab
-        4. Add a new environment variable:
-           - Key: OPENAI_API_KEY
-           - Value: your-api-key-here
-        5. Redeploy your service
-        """)
-        st.stop()
-
-    # Create an OpenAI client
-    client = OpenAI(api_key=openai_api_key)
 
     # Create a session state variable to store the chat messages
     if "messages" not in st.session_state:
