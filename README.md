@@ -28,10 +28,46 @@ NuAnswers is an intelligent tutoring bot developed by Beta Alpha Psi: Nu Sigma C
 - Encourages in-person tutoring during scheduled sessions
 - Available 24/7 outside of tutoring hours
 
-### 📊 Usage Tracking
-- Records student usage statistics
-- Tracks session duration
-- Maintains user registration data
+### 📊 Advanced Analytics Dashboard
+#### Overview Metrics
+- Total registrations and unique students
+- Total and average usage time
+- Return user analysis and retention rates
+
+#### Time-Based Analytics
+- Daily and weekly usage patterns
+- Peak usage times heatmap
+- Session duration analysis
+- Hourly distribution of activity
+
+#### Academic Performance Metrics
+- Grade level progression analysis
+- Major and course distribution
+- Cross-analysis of academic factors
+- Professor engagement statistics
+
+#### User Engagement Metrics
+- Session frequency patterns
+- Time between sessions analysis
+- Return user behavior
+- User retention statistics
+
+#### Document Analytics
+- File type distribution
+- Documents per student
+- Upload patterns and trends
+
+#### Chat Interaction Analysis
+- Message statistics and patterns
+- Average message length
+- User engagement metrics
+- Interaction frequency
+
+#### Enhanced Filtering and Export
+- Multi-dimensional data filtering
+- Date range selection
+- Major and campus filtering
+- Export to CSV and Excel formats
 
 ## 🚀 Getting Started
 
@@ -107,12 +143,17 @@ TUTORING_HOURS = {
 - Search and manage uploaded documents
 
 ### Administrators
-- Access usage statistics
-- Download registration data
-- Monitor student interactions
+- Access comprehensive usage statistics
+- Monitor real-time engagement metrics
+- Track academic performance patterns
+- Analyze user behavior and retention
+- View document upload statistics
+- Export detailed analytics reports
+- Filter and customize data views
+- Monitor chat interaction patterns
 
 ## 📝 Registration Data
-The system collects:
+The system collects and analyzes:
 - Full Name
 - Student ID
 - Email
@@ -121,6 +162,9 @@ The system collects:
 - Major
 - Course Information
 - Usage Statistics
+- Session Patterns
+- Document Upload History
+- Chat Interaction Data
 
 ## 🔒 Security Features
 - Password-protected admin access

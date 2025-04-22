@@ -3,8 +3,8 @@ services:
     name: nuanswers
     env: python
     plan: starter # Specify starter plan
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0
+    buildCommand: python -m pip install --no-cache-dir --upgrade pip && pip install -r requirements.txt
+    startCommand: streamlit run NuAnswers_Beta.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -12,6 +12,8 @@ services:
         value: ${OPENAI_API_KEY}
       - key: ADMIN_PASSWORD
         value: ${ADMIN_PASSWORD}
+      - key: DATABASE_URL
+        value: ${DATABASE_URL}
       - key: STREAMLIT_SERVER_PORT
         value: ${PORT}
       - key: STREAMLIT_SERVER_ADDRESS
@@ -44,3 +46,7 @@ services:
       - path: /*
         name: Content-Security-Policy
         value: "default-src 'self' https: 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'none'"
+
+databases:
+  - name: nuanswers_db
+    plan: starter # Use the free tier

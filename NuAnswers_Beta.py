@@ -7,14 +7,13 @@ import tempfile
 from pathlib import Path
 import PyPDF2
 import docx
-import textract
 import pptx
 import csv
 import xlrd
 import openpyxl
 import io
 
-# Set security headers
+# Set page config
 st.set_page_config(
     page_title="NuAnswers",
     page_icon="📚",
@@ -22,26 +21,31 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Configure security headers
-headers = {
-    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "SAMEORIGIN",
-    "X-XSS-Protection": "1; mode=block",
-    "Content-Security-Policy": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https:;",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
-}
-
-# Apply security headers
-for header, value in headers.items():
-    st.markdown(f"""
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {{
-                document.getElementsByTagName('head')[0].setAttribute('{header}', '{value}');
-            }});
-        </script>
-    """, unsafe_allow_html=True)
+# Hide all default Streamlit elements we don't want to show
+st.markdown("""
+    <style>
+        /* Hide page names in sidebar */
+        span.css-10trblm.e16nr0p30 {
+            display: none;
+        }
+        /* Hide the default Streamlit menu button */
+        button.css-1rs6os.edgvbvh3 {
+            display: none;
+        }
+        /* Hide "streamlit app" text */
+        .css-17ziqus {
+            display: none;
+        }
+        /* Hide development mode indicator */
+        .stDeployButton {
+            display: none;
+        }
+        /* Sidebar styling */
+        .css-1d391kg {
+            padding-top: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # Tutoring hours configuration
 TUTORING_HOURS = {
@@ -120,87 +124,9 @@ def save_registration(user_data, start_time):
     except Exception as e:
         st.error(f"Failed to save registration data: {str(e)}")
 
-# Create a sidebar for admin tools
+# Create a sidebar
 with st.sidebar:
-    st.title("👨‍💼 Administrator Tools")
-    
-    # Get admin password from environment variable or secrets
-    admin_password = os.environ.get("ADMIN_PASSWORD") or st.secrets.get("ADMIN_PASSWORD")
-    
-    if not admin_password:
-        st.error("Admin password not configured. Please set ADMIN_PASSWORD in environment variables or secrets.toml")
-    else:
-        # Password protection for admin access
-        entered_password = st.text_input("Enter Admin Password", type="password", key="admin_password")
-        
-        if entered_password == admin_password:
-            st.success("✅ Admin access granted!")
-            
-            # Download section
-            st.markdown("### 📊 Download Options")
-            
-            # CSV Download
-            st.download_button(
-                label="📥 Download as CSV",
-                data=st.session_state.registration_data.to_csv(index=False).encode('utf-8'),
-                file_name="user_registrations.csv",
-                mime="text/csv",
-                disabled=len(st.session_state.registration_data) == 0
-            )
-            
-            # Excel Download
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                st.session_state.registration_data.to_excel(writer, index=False)
-            
-            st.download_button(
-                label="📊 Download as Excel",
-                data=buffer.getvalue(),
-                file_name="user_registrations.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                disabled=len(st.session_state.registration_data) == 0
-            )
-            
-            # Statistics section
-            st.markdown("### 📈 Statistics")
-            col1, col2 = st.columns(2)
-            
-            try:
-                # Load data from CSV for statistics
-                csv_path = "registration_data.csv"
-                if os.path.exists(csv_path):
-                    df = pd.read_csv(csv_path)
-                    total_registrations = len(df)
-                    avg_time = df['usage_time_minutes'].mean() if len(df) > 0 else 0.0
-                else:
-                    total_registrations = 0
-                    avg_time = 0.0
-                    
-                with col1:
-                    st.metric("Total Registrations", total_registrations)
-                with col2:
-                    st.metric("Avg. Usage (min)", f"{avg_time:.1f}")
-                
-                # Recent registrations section
-                st.markdown("### 🕒 Recent Registrations")
-                if total_registrations > 0:
-                    st.dataframe(
-                        df.tail(5)[["timestamp", "full_name", "student_id", "email"]],
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No registrations yet")
-                    # Display empty table with correct columns
-                    st.dataframe(
-                        pd.DataFrame(columns=["timestamp", "full_name", "student_id", "email"]),
-                        hide_index=True,
-                        use_container_width=True
-                    )
-            except Exception as e:
-                st.error(f"Error loading registration data: {str(e)}")
-        elif entered_password:  # Only show error if a password was entered
-            st.error("❌ Incorrect password")
+    st.title("📚 NuAnswers")
 
 # Registration form
 if not st.session_state.registered:
@@ -276,7 +202,8 @@ def extract_text_from_file(file):
         elif file_extension in ['.xls', '.xlsx']:
             text = extract_text_from_excel(tmp_file_path)
         else:
-            text = textract.process(tmp_file_path).decode('utf-8')
+            st.error(f"Unsupported file type: {file_extension}")
+            return None
     except Exception as e:
         st.error(f"Error processing file: {str(e)}")
         return None
