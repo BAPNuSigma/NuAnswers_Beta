@@ -12,6 +12,7 @@ import pptx
 import csv
 import xlrd
 import openpyxl
+import io
 
 # Set security headers
 st.set_page_config(
@@ -72,25 +73,19 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "user_data" not in st.session_state:
     st.session_state.user_data = {}
+if "registration_data" not in st.session_state:
+    st.session_state.registration_data = pd.DataFrame(columns=[
+        "timestamp", "full_name", "student_id", "email", "grade", "campus",
+        "major", "course_name", "course_id", "professor", "usage_time_minutes"
+    ])
 
-# Function to save user data and usage time
-def save_user_data(user_data, usage_time):
-    # Create data directory if it doesn't exist
-    if not os.path.exists("user_data"):
-        os.makedirs("user_data")
+def save_registration(user_data, start_time):
+    """Save registration data to session state DataFrame"""
+    end_time = datetime.datetime.now()
+    usage_time = (end_time - start_time).total_seconds() / 60
     
-    # Create or load the CSV file
-    csv_path = "user_data/user_registrations.csv"
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-    else:
-        df = pd.DataFrame(columns=[
-            "timestamp", "full_name", "student_id", "email", "grade", "campus",
-            "major", "course_name", "course_id", "professor", "usage_time_minutes"
-        ])
-    
-    # Add new user data
-    new_row = {
+    # Create new registration entry
+    new_registration = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "full_name": user_data["full_name"],
         "student_id": user_data["student_id"],
@@ -104,12 +99,108 @@ def save_user_data(user_data, usage_time):
         "usage_time_minutes": usage_time
     }
     
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_csv(csv_path, index=False)
+    # Add new registration to the DataFrame
+    st.session_state.registration_data = pd.concat([
+        st.session_state.registration_data,
+        pd.DataFrame([new_registration])
+    ], ignore_index=True)
     
-    # Also save to a timestamped file for backup
-    backup_path = f"user_data/user_registrations_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    df.to_csv(backup_path, index=False)
+    # Save to CSV file for persistence
+    try:
+        # Load existing data if file exists
+        csv_path = "registration_data.csv"
+        if os.path.exists(csv_path):
+            existing_data = pd.read_csv(csv_path)
+            combined_data = pd.concat([existing_data, pd.DataFrame([new_registration])], ignore_index=True)
+        else:
+            combined_data = pd.DataFrame([new_registration])
+        
+        # Save combined data back to CSV
+        combined_data.to_csv(csv_path, index=False)
+    except Exception as e:
+        st.error(f"Failed to save registration data: {str(e)}")
+
+# Create a sidebar for admin tools
+with st.sidebar:
+    st.title("👨‍💼 Administrator Tools")
+    
+    # Get admin password from environment variable or secrets
+    admin_password = os.environ.get("ADMIN_PASSWORD") or st.secrets.get("ADMIN_PASSWORD")
+    
+    if not admin_password:
+        st.error("Admin password not configured. Please set ADMIN_PASSWORD in environment variables or secrets.toml")
+    else:
+        # Password protection for admin access
+        entered_password = st.text_input("Enter Admin Password", type="password", key="admin_password")
+        
+        if entered_password == admin_password:
+            st.success("✅ Admin access granted!")
+            
+            # Download section
+            st.markdown("### 📊 Download Options")
+            
+            # CSV Download
+            st.download_button(
+                label="📥 Download as CSV",
+                data=st.session_state.registration_data.to_csv(index=False).encode('utf-8'),
+                file_name="user_registrations.csv",
+                mime="text/csv",
+                disabled=len(st.session_state.registration_data) == 0
+            )
+            
+            # Excel Download
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                st.session_state.registration_data.to_excel(writer, index=False)
+            
+            st.download_button(
+                label="📊 Download as Excel",
+                data=buffer.getvalue(),
+                file_name="user_registrations.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                disabled=len(st.session_state.registration_data) == 0
+            )
+            
+            # Statistics section
+            st.markdown("### 📈 Statistics")
+            col1, col2 = st.columns(2)
+            
+            try:
+                # Load data from CSV for statistics
+                csv_path = "registration_data.csv"
+                if os.path.exists(csv_path):
+                    df = pd.read_csv(csv_path)
+                    total_registrations = len(df)
+                    avg_time = df['usage_time_minutes'].mean() if len(df) > 0 else 0.0
+                else:
+                    total_registrations = 0
+                    avg_time = 0.0
+                    
+                with col1:
+                    st.metric("Total Registrations", total_registrations)
+                with col2:
+                    st.metric("Avg. Usage (min)", f"{avg_time:.1f}")
+                
+                # Recent registrations section
+                st.markdown("### 🕒 Recent Registrations")
+                if total_registrations > 0:
+                    st.dataframe(
+                        df.tail(5)[["timestamp", "full_name", "student_id", "email"]],
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else:
+                    st.info("No registrations yet")
+                    # Display empty table with correct columns
+                    st.dataframe(
+                        pd.DataFrame(columns=["timestamp", "full_name", "student_id", "email"]),
+                        hide_index=True,
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error(f"Error loading registration data: {str(e)}")
+        elif entered_password:  # Only show error if a password was entered
+            st.error("❌ Incorrect password")
 
 # Registration form
 if not st.session_state.registered:
@@ -127,9 +218,9 @@ if not st.session_state.registered:
         # Course-specific questions based on major
         if major == "Accounting":
             course_name = st.text_input("Which Accounting class are you taking that relates to what you need help in?")
-        elif major == "Finance":
+        if major == "Finance":
             course_name = st.text_input("Which Finance class are you taking that relates to what you need help in?")
-        else:  # MIS
+        if major == "MIS [Management Information Systems]":
             course_name = st.text_input("Which MIS class are you taking that relates to what you need help in?")
         
         course_id = st.text_input("Course ID (EX: ACCT_####_##)")
@@ -141,6 +232,7 @@ if not st.session_state.registered:
             if not all([full_name, student_id, email, course_id, professor]):
                 st.error("Please fill in all required fields.")
             else:
+                # Save user data
                 st.session_state.user_data = {
                     "full_name": full_name,
                     "student_id": student_id,
@@ -152,45 +244,14 @@ if not st.session_state.registered:
                     "course_id": course_id,
                     "professor": professor
                 }
-                st.session_state.registered = True
                 st.session_state.start_time = datetime.datetime.now()
+                
+                # Save registration data
+                save_registration(st.session_state.user_data, st.session_state.start_time)
+                
+                # Set registered state
+                st.session_state.registered = True
                 st.rerun()
-
-# Add a download button for administrators
-if st.session_state.registered:
-    # Add a section for administrators
-    st.sidebar.title("Administrator Tools")
-    
-    # Get admin password from environment variable or secrets
-    admin_password = os.environ.get("ADMIN_PASSWORD") or st.secrets.get("ADMIN_PASSWORD")
-    
-    if not admin_password:
-        st.sidebar.error("Admin password not configured. Please set ADMIN_PASSWORD in environment variables or secrets.toml")
-        st.stop()
-    
-    # Password protection for admin access
-    entered_password = st.sidebar.text_input("Enter Admin Password", type="password")
-    
-    if entered_password == admin_password:
-        st.sidebar.success("Admin access granted!")
-        
-        # Download button for the CSV file
-        if os.path.exists("user_data/user_registrations.csv"):
-            with open("user_data/user_registrations.csv", "rb") as f:
-                st.sidebar.download_button(
-                    label="📥 Download User Data",
-                    data=f,
-                    file_name="user_registrations.csv",
-                    mime="text/csv"
-                )
-        
-        # Display the most recent entries
-        st.sidebar.subheader("Recent Registrations")
-        if os.path.exists("user_data/user_registrations.csv"):
-            df = pd.read_csv("user_data/user_registrations.csv")
-            st.sidebar.dataframe(df.tail(5))  # Show last 5 entries
-    elif entered_password:  # Only show error if a password was entered
-        st.sidebar.error("Incorrect password")
 
 # Function to extract text from different file types
 def extract_text_from_file(file):
@@ -499,12 +560,8 @@ Example of bad tutoring:
 
     # Add a logout button
     if st.button("Logout"):
-        # Calculate usage time
-        end_time = datetime.datetime.now()
-        usage_time = (end_time - st.session_state.start_time).total_seconds() / 60
-        
-        # Save user data and usage time
-        save_user_data(st.session_state.user_data, usage_time)
+        # Save final usage data before logout
+        save_registration(st.session_state.user_data, st.session_state.start_time)
         
         # Reset session state
         st.session_state.registered = False
@@ -512,3 +569,43 @@ Example of bad tutoring:
         st.session_state.user_data = {}
         st.session_state.messages = []
         st.rerun()
+
+def show_admin_panel():
+    """Display admin panel with registration statistics"""
+    st.header("Admin Panel")
+    
+    try:
+        # Load data from CSV
+        csv_path = "registration_data.csv"
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            
+            # Convert timestamp to datetime
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Calculate statistics
+            total_registrations = len(df)
+            total_usage_minutes = df['usage_time_minutes'].sum()
+            avg_usage_minutes = df['usage_time_minutes'].mean()
+            
+            # Display statistics
+            st.metric("Total Registrations", total_registrations)
+            st.metric("Total Usage Time (minutes)", f"{total_usage_minutes:.2f}")
+            st.metric("Average Usage Time (minutes)", f"{avg_usage_minutes:.2f}")
+            
+            # Show daily statistics
+            st.subheader("Daily Statistics")
+            daily_stats = df.groupby(df['timestamp'].dt.date).agg({
+                'student_id': 'count',
+                'usage_time_minutes': ['sum', 'mean']
+            }).reset_index()
+            daily_stats.columns = ['Date', 'Registrations', 'Total Minutes', 'Avg Minutes']
+            st.dataframe(daily_stats.sort_values('Date', ascending=False))
+            
+            # Show raw data
+            st.subheader("Raw Registration Data")
+            st.dataframe(df.sort_values('timestamp', ascending=False))
+        else:
+            st.info("No registration data available yet.")
+    except Exception as e:
+        st.error(f"Error loading registration data: {str(e)}")
