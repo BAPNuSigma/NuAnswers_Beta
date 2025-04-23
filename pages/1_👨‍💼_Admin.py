@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import calendar
 import io
-from database import get_filtered_registrations, get_all_registrations
+from supabase_db import get_all_users
 
 # Set page config
 st.set_page_config(
@@ -62,7 +62,7 @@ st.sidebar.success("✅ Admin access granted!")
 
 try:
     # Load data from database
-    df = get_all_registrations()
+    df = get_all_users()
     
     if df.empty:
         st.info("No registration data available yet.")
@@ -427,13 +427,13 @@ try:
     col1, col2, col3 = st.columns(3)
     
     with col1:
-    # Date filter
-    date_range = st.date_input(
-        "Filter by date range",
-        value=(df['timestamp'].min().date(), df['timestamp'].max().date()),
-        min_value=df['timestamp'].min().date(),
-        max_value=df['timestamp'].max().date()
-    )
+        # Date filter
+        date_range = st.date_input(
+            "Filter by date range",
+            value=(df['created_at'].min().date(), df['created_at'].max().date()),
+            min_value=df['created_at'].min().date(),
+            max_value=df['created_at'].max().date()
+        )
     
     with col2:
         # Major filter
@@ -451,21 +451,24 @@ try:
             default=[]
         )
     
-    # Get filtered data from database
+    # Apply filters to the dataframe
+    filtered_df = df.copy()
     if len(date_range) == 2:
         start_date, end_date = date_range
-        filtered_df = get_filtered_registrations(
-            start_date=start_date,
-            end_date=end_date,
-            majors=selected_majors if selected_majors else None,
-            campuses=selected_campuses if selected_campuses else None
-        )
-    else:
-        filtered_df = df
+        filtered_df = filtered_df[
+            (filtered_df['created_at'].dt.date >= start_date) & 
+            (filtered_df['created_at'].dt.date <= end_date)
+        ]
+    
+    if selected_majors:
+        filtered_df = filtered_df[filtered_df['major'].isin(selected_majors)]
+    
+    if selected_campuses:
+        filtered_df = filtered_df[filtered_df['campus'].isin(selected_campuses)]
     
     # Display filtered data
     st.dataframe(
-        filtered_df.sort_values('timestamp', ascending=False),
+        filtered_df.sort_values('created_at', ascending=False),
         use_container_width=True
     )
     
