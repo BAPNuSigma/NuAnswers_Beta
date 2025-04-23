@@ -32,7 +32,10 @@ def save_registration(user_data, start_time):
 def get_all_registrations():
     supabase = init_supabase()
     response = supabase.table("registrations").select("*").execute()
-    return pd.DataFrame(response.data)
+    df = pd.DataFrame(response.data)
+    if not df.empty and 'timestamp' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+    return df
 
 # Get filtered registrations
 def get_filtered_registrations(start_date=None, end_date=None, majors=None, campuses=None):
@@ -68,7 +71,10 @@ def save_feedback(rating, topic, difficulty, student_id, course_id):
 def get_all_feedback():
     supabase = init_supabase()
     response = supabase.table("feedback").select("*").execute()
-    return pd.DataFrame(response.data)
+    df = pd.DataFrame(response.data)
+    if not df.empty and 'timestamp' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+    return df
 
 # Save topic
 def save_topic(topic, difficulty, student_id, course_id):
@@ -86,7 +92,10 @@ def save_topic(topic, difficulty, student_id, course_id):
 def get_all_topics():
     supabase = init_supabase()
     response = supabase.table("topics").select("*").execute()
-    return pd.DataFrame(response.data)
+    df = pd.DataFrame(response.data)
+    if not df.empty and 'timestamp' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+    return df
 
 # Save completion
 def save_completion(completed, student_id, course_id):
@@ -103,4 +112,7 @@ def save_completion(completed, student_id, course_id):
 def get_all_completions():
     supabase = init_supabase()
     response = supabase.table("completions").select("*").execute()
-    return pd.DataFrame(response.data) 
+    df = pd.DataFrame(response.data)
+    if not df.empty and 'timestamp' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+    return df 
