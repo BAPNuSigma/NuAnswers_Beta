@@ -140,25 +140,12 @@ try:
     st.subheader("🔄 Return User Analysis")
     col1, col2, col3 = st.columns(3)
     
-    if not df.empty:
-        user_sessions = df.groupby('student_id').size()
-        return_users = (user_sessions > 1).sum()
-        total_users = len(user_sessions)
-        avg_sessions = user_sessions.mean()
-        
-        with col1:
-            st.metric("Return Users", return_users)
-        with col2:
-            st.metric("Return Rate", f"{(return_users/total_users)*100:.1f}%")
-        with col3:
-            st.metric("Avg Sessions per User", f"{avg_sessions:.1f}")
-    else:
-        with col1:
-            st.metric("Return Users", 0)
-        with col2:
-            st.metric("Return Rate", "0.0%")
-        with col3:
-            st.metric("Avg Sessions per User", "0.0")
+    with col1:
+        st.metric("Return Users", 0)
+    with col2:
+        st.metric("Return Rate", "0.0%")
+    with col3:
+        st.metric("Avg Sessions per User", "0.0")
     
     # Time-based Analysis
     st.subheader("📈 Usage Trends")
@@ -166,65 +153,60 @@ try:
     tab1, tab2, tab3 = st.tabs(["Daily Stats", "Weekly Patterns", "Hourly Distribution"])
     
     with tab1:
-        if not df.empty:
-            daily_stats = df.groupby(df['timestamp'].dt.date).agg({
-                'student_id': 'count',
-                'usage_time_minutes': ['sum', 'mean']
-            }).reset_index()
-            daily_stats.columns = ['Date', 'Registrations', 'Total Minutes', 'Avg Minutes']
-            
-            fig_daily = px.line(daily_stats, x='Date', y=['Registrations', 'Avg Minutes'],
-                               title='Daily Registration and Usage Trends')
-            st.plotly_chart(fig_daily, use_container_width=True)
-        else:
-            st.info("No daily statistics available yet.")
+        # Create empty daily stats DataFrame
+        dates = pd.date_range(start=datetime.now() - timedelta(days=30), end=datetime.now())
+        daily_stats = pd.DataFrame({
+            'Date': dates,
+            'Registrations': [0] * len(dates),
+            'Total Minutes': [0] * len(dates),
+            'Avg Minutes': [0] * len(dates)
+        })
+        
+        fig_daily = px.line(daily_stats, x='Date', y=['Registrations', 'Avg Minutes'],
+                           title='Daily Registration and Usage Trends')
+        st.plotly_chart(fig_daily, use_container_width=True)
     
     with tab2:
-        if not df.empty:
-            df['day_of_week'] = df['timestamp'].dt.day_name()
-            weekly_stats = df.groupby('day_of_week').agg({
-                'student_id': 'count',
-                'usage_time_minutes': 'mean'
-            })
-            
-            # Ensure proper day order
-            day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-            weekly_stats = weekly_stats.reindex(day_order)
-            
-            fig_weekly = go.Figure()
-            fig_weekly.add_trace(go.Bar(
-                x=weekly_stats.index,
-                y=weekly_stats['student_id'],
-                name='Number of Sessions'
-            ))
-            fig_weekly.add_trace(go.Scatter(
-                x=weekly_stats.index,
-                y=weekly_stats['usage_time_minutes'],
-                name='Avg Session Length (min)',
-                yaxis='y2'
-            ))
-            fig_weekly.update_layout(
-                title='Weekly Usage Patterns',
-                yaxis2=dict(
-                    title='Avg Session Length (min)',
-                    overlaying='y',
-                    side='right'
-                )
+        # Create empty weekly stats DataFrame
+        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        weekly_stats = pd.DataFrame({
+            'day_of_week': day_order,
+            'student_id': [0] * 7,
+            'usage_time_minutes': [0] * 7
+        }).set_index('day_of_week')
+        
+        fig_weekly = go.Figure()
+        fig_weekly.add_trace(go.Bar(
+            x=weekly_stats.index,
+            y=weekly_stats['student_id'],
+            name='Number of Sessions'
+        ))
+        fig_weekly.add_trace(go.Scatter(
+            x=weekly_stats.index,
+            y=weekly_stats['usage_time_minutes'],
+            name='Avg Session Length (min)',
+            yaxis='y2'
+        ))
+        fig_weekly.update_layout(
+            title='Weekly Usage Patterns',
+            yaxis2=dict(
+                title='Avg Session Length (min)',
+                overlaying='y',
+                side='right'
             )
-            st.plotly_chart(fig_weekly, use_container_width=True)
-        else:
-            st.info("No weekly patterns available yet.")
+        )
+        st.plotly_chart(fig_weekly, use_container_width=True)
     
     with tab3:
-        if not df.empty:
-            hourly_dist = df.groupby(df['timestamp'].dt.hour)['student_id'].count().reset_index()
-            hourly_dist.columns = ['Hour', 'Count']
-            
-            fig_hourly = px.bar(hourly_dist, x='Hour', y='Count',
-                               title='Usage Distribution by Hour of Day')
-            st.plotly_chart(fig_hourly, use_container_width=True)
-        else:
-            st.info("No hourly distribution data available yet.")
+        # Create empty hourly distribution DataFrame
+        hourly_dist = pd.DataFrame({
+            'Hour': range(24),
+            'Count': [0] * 24
+        })
+        
+        fig_hourly = px.bar(hourly_dist, x='Hour', y='Count',
+                           title='Usage Distribution by Hour of Day')
+        st.plotly_chart(fig_hourly, use_container_width=True)
     
     # Time-Based Performance
     st.subheader("⏰ Time-Based Performance")
@@ -232,24 +214,28 @@ try:
     tab1, tab2 = st.tabs(["Session Duration Analysis", "Peak Usage Times"])
     
     with tab1:
-        if not df.empty:
-            # Average session duration by time of day
-            hourly_duration = df.groupby(df['timestamp'].dt.hour)['usage_time_minutes'].mean().reset_index()
-            hourly_duration.columns = ['Hour', 'Avg Duration']
-            
-            fig_duration = px.line(hourly_duration, x='Hour', y='Avg Duration',
-                                 title='Average Session Duration by Hour of Day',
-                                 labels={'Hour': 'Hour of Day', 'Avg Duration': 'Average Duration (minutes)'})
-            st.plotly_chart(fig_duration, use_container_width=True)
-            
-            # Session duration distribution
-            fig_duration_dist = px.histogram(df, x='usage_time_minutes',
-                                           title='Distribution of Session Durations',
-                                           labels={'usage_time_minutes': 'Session Duration (minutes)'},
-                                           nbins=30)
-            st.plotly_chart(fig_duration_dist, use_container_width=True)
-        else:
-            st.info("No session duration data available yet.")
+        # Create empty duration analysis
+        hourly_duration = pd.DataFrame({
+            'Hour': range(24),
+            'Avg Duration': [0] * 24
+        })
+        
+        fig_duration = px.line(hourly_duration, x='Hour', y='Avg Duration',
+                             title='Average Session Duration by Hour of Day',
+                             labels={'Hour': 'Hour of Day', 'Avg Duration': 'Average Duration (minutes)'})
+        st.plotly_chart(fig_duration, use_container_width=True)
+        
+        # Create empty duration distribution
+        duration_dist = pd.DataFrame({
+            'usage_time_minutes': range(0, 60, 2),
+            'count': [0] * 30
+        })
+        
+        fig_duration_dist = px.histogram(duration_dist, x='usage_time_minutes',
+                                       title='Distribution of Session Durations',
+                                       labels={'usage_time_minutes': 'Session Duration (minutes)'},
+                                       nbins=30)
+        st.plotly_chart(fig_duration_dist, use_container_width=True)
     
     with tab2:
         if not df.empty:
