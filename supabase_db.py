@@ -19,7 +19,7 @@ def init_supabase():
         return None
 
 # Save registration data
-def save_registration(user_data, start_time):
+def save_registration_data(user_data, start_time=None):
     try:
         supabase = init_supabase()
         if not supabase:
