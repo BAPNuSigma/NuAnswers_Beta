@@ -138,7 +138,12 @@ DATA_DIR.mkdir(exist_ok=True)
 
 def save_registration_data(user_data, start_time):
     """Save registration data to Supabase"""
-    save_registration(user_data, start_time)
+    try:
+        if not start_time:
+            start_time = datetime.now()
+        save_registration(user_data, start_time)
+    except Exception as e:
+        st.error(f"Error saving registration data: {str(e)}")
 
 def save_feedback_data(rating, topic, difficulty):
     """Save feedback data to Supabase"""
