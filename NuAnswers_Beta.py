@@ -15,7 +15,7 @@ import io
 import base64
 from zoneinfo import ZoneInfo
 import re
-from supabase_db import save_registration, get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion
+from supabase_db import save_registration, get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data
 
 # Set page config
 st.set_page_config(
@@ -136,14 +136,13 @@ COMPLETION_DATA_PATH = DATA_DIR / "completion_data.csv"
 # Create data directory if it doesn't exist
 DATA_DIR.mkdir(exist_ok=True)
 
-def save_registration_data(user_data, start_time):
+def save_registration_data(user_data, start_time=None):
     """Save registration data to Supabase"""
     try:
-        if not start_time:
-            start_time = datetime.now()
-        save_registration(user_data, start_time)
+        return save_registration_data(user_data, start_time)
     except Exception as e:
         st.error(f"Error saving registration data: {str(e)}")
+        return None
 
 def save_feedback_data(rating, topic, difficulty):
     """Save feedback data to Supabase"""
