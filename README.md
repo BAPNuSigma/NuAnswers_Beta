@@ -75,6 +75,8 @@ NuAnswers is an intelligent tutoring bot developed by Beta Alpha Psi: Nu Sigma C
 - Python 3.9 or higher
 - OpenAI API key
 - Streamlit account (for deployment)
+- PostgreSQL 15 (for local development)
+- Supabase account (for production)
 
 ### Installation
 
@@ -94,12 +96,24 @@ pip install -r requirements.txt
 ```toml
 OPENAI_API_KEY = "your-api-key-here"
 ADMIN_PASSWORD = "your-admin-password-here"
+SUPABASE_URL = "your-supabase-url"
+SUPABASE_KEY = "your-supabase-key"
+DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/nuanswers_db"
+```
+
+4. Set up local PostgreSQL database:
+```bash
+# Create database
+createdb nuanswers_db
+
+# Create user (if not exists)
+createuser -s postgres
 ```
 
 ### Running Locally
 
 ```bash
-streamlit run streamlit_app.py
+streamlit run NuAnswers_Beta.py
 ```
 
 ### Deployment on Render
@@ -161,6 +175,10 @@ The system collects and analyzes:
 - Campus
 - Major
 - Course Information
+  - Course Name
+  - Course ID
+  - Professor Name
+  - Professor Email (must end with @fdu.edu)
 - Usage Statistics
 - Session Patterns
 - Document Upload History
