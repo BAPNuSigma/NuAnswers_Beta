@@ -1,4 +1,4 @@
-from supabase import create_client, Client
+from supabase import create_client
 import os
 import streamlit as st
 from datetime import datetime
@@ -8,7 +8,7 @@ import pandas as pd
 def init_supabase():
     url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
-    return create_client(url, key)
+    return create_client(supabase_url=url, supabase_key=key)
 
 # Save registration data
 def save_registration(user_data, start_time):
