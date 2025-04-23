@@ -15,7 +15,7 @@ import io
 import base64
 from zoneinfo import ZoneInfo
 import re
-from supabase_db import save_registration, get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data
+from supabase_db import get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data
 
 # Set page config
 st.set_page_config(
@@ -136,10 +136,15 @@ COMPLETION_DATA_PATH = DATA_DIR / "completion_data.csv"
 # Create data directory if it doesn't exist
 DATA_DIR.mkdir(exist_ok=True)
 
-def save_registration_data(user_data, start_time=None):
+def handle_registration(user_data, start_time=None):
     """Save registration data to Supabase"""
     try:
-        return save_registration_data(user_data, start_time)
+        if not start_time:
+            start_time = datetime.now(timezone.utc)
+        result = save_registration_data(user_data, start_time)
+        if result:
+            st.success("Registration saved successfully!")
+        return result
     except Exception as e:
         st.error(f"Error saving registration data: {str(e)}")
         return None
@@ -290,7 +295,7 @@ if not st.session_state.registered:
                 st.write("Debug - Start Time:", st.session_state.start_time)
                 
                 # Save registration data
-                registration_result = save_registration_data(st.session_state.user_data, st.session_state.start_time)
+                registration_result = handle_registration(st.session_state.user_data, st.session_state.start_time)
                 
                 if registration_result:
                     st.success("Registration successful!")
@@ -636,7 +641,7 @@ Example of bad tutoring:
     # Add a logout button
     if st.button("Logout"):
         # Save final usage data before logout
-        save_registration_data(st.session_state.user_data, st.session_state.start_time)
+        handle_registration(st.session_state.user_data, st.session_state.start_time)
         
         # Reset session state
         st.session_state.registered = False
