@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import calendar
 import io
-from supabase_db import get_all_users
+from supabase_db import get_all_registrations
 
 # Set page config
 st.set_page_config(
@@ -62,7 +62,7 @@ st.sidebar.success("✅ Admin access granted!")
 
 try:
     # Load data from database
-    df = get_all_users()
+    df = get_all_registrations()
     
     if df.empty:
         st.info("No registration data available yet.")
