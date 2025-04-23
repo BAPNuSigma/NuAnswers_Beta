@@ -40,8 +40,7 @@ def save_registration_data(user_data, start_time=None):
             "course_id": user_data["course_id"],
             "professor": user_data["professor"],
             "professor_email": user_data["professor_email"],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "start_time": start_time.isoformat() if start_time else None
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         # Log the formatted data
