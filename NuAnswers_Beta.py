@@ -15,7 +15,7 @@ import io
 import base64
 from zoneinfo import ZoneInfo
 import re
-from supabase_db import get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data
+from supabase_db import get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data, get_all_feedback, get_all_topics, get_all_completions
 
 # Set page config
 st.set_page_config(
@@ -677,43 +677,87 @@ Example of bad tutoring:
 
 def show_admin_panel():
     """Display admin panel with registration statistics"""
-    st.header("Admin Panel")
+    st.header("👨‍💼 Administrator Dashboard")
     
     try:
-        # Load data from CSV
-        csv_path = "registration_data.csv"
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path)
-            
-            # Convert timestamp to datetime
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
-            # Calculate statistics
-            total_registrations = len(df)
-            total_usage_minutes = df['usage_time_minutes'].sum()
-            avg_usage_minutes = df['usage_time_minutes'].mean()
-            
-            # Display statistics
-            st.metric("Total Registrations", total_registrations)
-            st.metric("Total Usage Time (minutes)", f"{total_usage_minutes:.2f}")
-            st.metric("Average Usage Time (minutes)", f"{avg_usage_minutes:.2f}")
-            
-            # Show daily statistics
-            st.subheader("Daily Statistics")
-            daily_stats = df.groupby(df['timestamp'].dt.date).agg({
-                'student_id': 'count',
-                'usage_time_minutes': ['sum', 'mean']
-            }).reset_index()
-            daily_stats.columns = ['Date', 'Registrations', 'Total Minutes', 'Avg Minutes']
-            st.dataframe(daily_stats.sort_values('Date', ascending=False))
-            
-            # Show raw data
-            st.subheader("Raw Registration Data")
-            st.dataframe(df.sort_values('timestamp', ascending=False))
-        else:
+        # Get registration data
+        df = get_all_registrations()
+        
+        if df.empty:
             st.info("No registration data available yet.")
+            return
+            
+        # Download buttons section
+        st.subheader("📥 Download Data")
+        
+        col1, col2 = st.columns(2)
+        
+        # Download Registration Data (CSV)
+        with col1:
+            if st.button("Download Registration Data (CSV)"):
+                csv = df.to_csv(index=False)
+                b64 = base64.b64encode(csv.encode()).decode()
+                href = f'<a href="data:file/csv;base64,{b64}" download="registration_data.csv">Download CSV File</a>'
+                st.markdown(href, unsafe_allow_html=True)
+        
+        # Download All Data (Excel)
+        with col2:
+            if st.button("Download All Data (Excel)"):
+                try:
+                    # Create Excel writer object
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        # Write each dataframe to a different sheet
+                        df.to_excel(writer, sheet_name='Registrations', index=False)
+                        
+                        # Get and write other data if available
+                        feedback_df = get_all_feedback()
+                        if not feedback_df.empty and 'timestamp' in feedback_df.columns:
+                            feedback_df['timestamp'] = pd.to_datetime(feedback_df['timestamp']).dt.tz_localize(None)
+                        feedback_df.to_excel(writer, sheet_name='Feedback', index=False)
+                        
+                        topics_df = get_all_topics()
+                        if not topics_df.empty and 'timestamp' in topics_df.columns:
+                            topics_df['timestamp'] = pd.to_datetime(topics_df['timestamp']).dt.tz_localize(None)
+                        topics_df.to_excel(writer, sheet_name='Topics', index=False)
+                        
+                        completions_df = get_all_completions()
+                        if not completions_df.empty and 'timestamp' in completions_df.columns:
+                            completions_df['timestamp'] = pd.to_datetime(completions_df['timestamp']).dt.tz_localize(None)
+                        completions_df.to_excel(writer, sheet_name='Completions', index=False)
+                    
+                    # Generate download link
+                    b64 = base64.b64encode(output.getvalue()).decode()
+                    href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="nuanswers_data.xlsx">Download Excel File</a>'
+                    st.markdown(href, unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"Error generating Excel file: {str(e)}")
+        
+        # Display metrics
+        st.subheader("📊 Overview Metrics")
+        
+        # Calculate metrics
+        total_registrations = len(df)
+        unique_students = df['student_id'].nunique()
+        
+        # Display metrics in columns
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Registrations", total_registrations)
+        with col2:
+            st.metric("Unique Students", unique_students)
+        with col3:
+            st.metric("Active Courses", df['course_id'].nunique())
+        with col4:
+            st.metric("Active Professors", df['professor'].nunique())
+        
+        # Display detailed data
+        st.subheader("📋 Registration Details")
+        st.dataframe(df)
+        
     except Exception as e:
-        st.error(f"Error loading registration data: {str(e)}")
+        st.error(f"Error loading or processing data: {str(e)}")
 
 # Initialize session state for feedback and topic tracking
 if "feedback_data" not in st.session_state:
