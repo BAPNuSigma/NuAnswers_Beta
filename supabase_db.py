@@ -6,14 +6,29 @@ import pandas as pd
 
 # Initialize Supabase client
 def init_supabase():
-    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
-    return create_client(supabase_url=url, supabase_key=key)
+    try:
+        url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+        if not url or not key:
+            st.error("Supabase credentials not found. Please check your environment variables or secrets.")
+            return None
+        client = create_client(supabase_url=url, supabase_key=key)
+        return client
+    except Exception as e:
+        st.error(f"Error initializing Supabase client: {str(e)}")
+        return None
 
 # Save registration data
-def save_registration(user_data):
+def save_registration(user_data, start_time):
     try:
         supabase = init_supabase()
+        if not supabase:
+            st.error("Failed to initialize Supabase client")
+            return None
+
+        # Log the data being sent
+        st.write("Debug - Saving registration data:", user_data)
+        
         data = {
             "full_name": user_data["full_name"],
             "student_id": user_data["student_id"],
@@ -25,12 +40,25 @@ def save_registration(user_data):
             "course_id": user_data["course_id"],
             "professor": user_data["professor"],
             "professor_email": user_data["professor_email"],
-            "registration_date": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "start_time": start_time.isoformat() if start_time else None
         }
+
+        # Log the formatted data
+        st.write("Debug - Formatted data for Supabase:", data)
+        
         response = supabase.table("registrations").insert(data).execute()
-        return response.data[0] if response.data else None
+        
+        if not response.data:
+            st.error("No data returned from Supabase after insert")
+            return None
+            
+        st.success("Registration saved successfully!")
+        return response.data[0]
     except Exception as e:
-        st.error(f"Error saving registration: {str(e)}")
+        st.error(f"Detailed error saving registration: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 # Get all registrations
