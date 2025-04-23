@@ -69,14 +69,16 @@ try:
     topic_df = get_all_topics()
     completion_df = get_all_completions()
     
-    # Convert timestamp columns to datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    if not feedback_df.empty:
-        feedback_df['timestamp'] = pd.to_datetime(feedback_df['timestamp'])
-    if not topic_df.empty:
-        topic_df['timestamp'] = pd.to_datetime(topic_df['timestamp'])
-    if not completion_df.empty:
-        completion_df['timestamp'] = pd.to_datetime(completion_df['timestamp'])
+    # Convert timestamp columns to datetime if they exist
+    for df_name, df_data in [('df', df), ('feedback_df', feedback_df), 
+                            ('topic_df', topic_df), ('completion_df', completion_df)]:
+        if not df_data.empty and 'timestamp' in df_data.columns:
+            try:
+                df_data['timestamp'] = pd.to_datetime(df_data['timestamp'])
+            except Exception as e:
+                st.error(f"Error converting timestamp in {df_name}: {str(e)}")
+                # If conversion fails, drop the timestamp column
+                df_data = df_data.drop('timestamp', axis=1)
     
     # Add download section at the top
     st.subheader("📥 Download Data")
