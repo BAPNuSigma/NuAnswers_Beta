@@ -62,29 +62,46 @@ def save_registration_data(user_data, start_time=None):
 
 # Get all registrations
 def get_all_registrations():
-    supabase = init_supabase()
-    response = supabase.table("registrations").select("*").execute()
-    df = pd.DataFrame(response.data)
-    if not df.empty and 'timestamp' in df.columns:
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-    return df
+    try:
+        supabase = init_supabase()
+        response = supabase.table("registrations").select("*").execute()
+        df = pd.DataFrame(response.data)
+        
+        # Convert timezone-aware timestamps to timezone-naive timestamps
+        if not df.empty and 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error retrieving registrations: {str(e)}")
+        return pd.DataFrame()
 
 # Get filtered registrations
 def get_filtered_registrations(start_date=None, end_date=None, majors=None, campuses=None):
-    supabase = init_supabase()
-    query = supabase.table("registrations").select("*")
-    
-    if start_date:
-        query = query.gte("timestamp", start_date.isoformat())
-    if end_date:
-        query = query.lte("timestamp", end_date.isoformat())
-    if majors:
-        query = query.in_("major", majors)
-    if campuses:
-        query = query.in_("campus", campuses)
+    try:
+        supabase = init_supabase()
+        query = supabase.table("registrations").select("*")
         
-    response = query.execute()
-    return pd.DataFrame(response.data)
+        if start_date:
+            query = query.gte("timestamp", start_date.isoformat())
+        if end_date:
+            query = query.lte("timestamp", end_date.isoformat())
+        if majors:
+            query = query.in_("major", majors)
+        if campuses:
+            query = query.in_("campus", campuses)
+            
+        response = query.execute()
+        df = pd.DataFrame(response.data)
+        
+        # Convert timezone-aware timestamps to timezone-naive timestamps
+        if not df.empty and 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error retrieving filtered registrations: {str(e)}")
+        return pd.DataFrame()
 
 # Save feedback
 def save_feedback(rating, topic, difficulty, student_id, course_id):
