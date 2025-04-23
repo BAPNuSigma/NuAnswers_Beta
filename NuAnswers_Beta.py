@@ -638,8 +638,16 @@ Example of bad tutoring:
             response = st.write_stream(stream)
         st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Add a logout button
-    if st.button("Logout"):
+    # Initialize session state for feedback and logout flow
+    if "show_feedback_form" not in st.session_state:
+        st.session_state.show_feedback_form = False
+    if "feedback_submitted" not in st.session_state:
+        st.session_state.feedback_submitted = False
+
+    def handle_logout():
+        st.session_state.show_feedback_form = True
+
+    def reset_session():
         # Save final usage data before logout
         handle_registration(st.session_state.user_data, st.session_state.start_time)
         
@@ -648,32 +656,55 @@ Example of bad tutoring:
         st.session_state.start_time = None
         st.session_state.user_data = {}
         st.session_state.messages = []
+        st.session_state.show_feedback_form = False
+        st.session_state.feedback_submitted = False
         st.rerun()
 
-    # Add feedback section after chat
-    if st.session_state.messages and len(st.session_state.messages) > 0:
+    # Add feedback section before logout
+    if st.session_state.show_feedback_form and not st.session_state.feedback_submitted:
         st.divider()
         st.subheader("📝 Session Feedback")
+        st.write("Before you go, please take a moment to provide feedback on your session.")
         
         feedback_col1, feedback_col2, feedback_col3 = st.columns(3)
         
         with feedback_col1:
-            topic = st.text_input("What topic did you discuss?", key="feedback_topic")
+            topic = st.text_input("What topics did you discuss today?", key="logout_feedback_topic")
         
         with feedback_col2:
-            rating = st.slider("How helpful was this session?", 1, 5, 3, key="feedback_rating")
+            rating = st.slider("How helpful was this session?", 1, 5, 3, key="logout_feedback_rating")
         
         with feedback_col3:
-            difficulty = st.slider("How difficult was the topic?", 1, 5, 3, key="feedback_difficulty")
+            difficulty = st.slider("How difficult were the topics?", 1, 5, 3, key="logout_feedback_difficulty")
         
-        if st.button("Submit Feedback"):
-            if topic:
-                save_feedback_data(rating, topic, difficulty)
-                track_topic_data(topic, difficulty)
-                track_completion_data(True)
-                st.success("Thank you for your feedback!")
-            else:
-                st.warning("Please enter the topic discussed.")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("Submit Feedback"):
+                if topic:
+                    save_feedback_data(rating, topic, difficulty)
+                    track_topic_data(topic, difficulty)
+                    track_completion_data(True)
+                    st.session_state.feedback_submitted = True
+                    st.success("Thank you for your feedback!")
+                    st.rerun()
+                else:
+                    st.warning("Please enter the topics discussed.")
+        
+        with col2:
+            if st.button("Skip Feedback"):
+                st.session_state.feedback_submitted = True
+                st.rerun()
+
+    # Only show the logout button in the main interface when not showing feedback
+    if st.session_state.registered and not st.session_state.show_feedback_form:
+        if st.button("Logout"):
+            handle_logout()
+            st.rerun()
+
+    # Handle final logout after feedback
+    if st.session_state.show_feedback_form and st.session_state.feedback_submitted:
+        reset_session()
 
 def show_admin_panel():
     """Display admin panel with registration statistics"""
