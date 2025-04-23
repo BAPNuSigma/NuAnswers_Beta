@@ -281,16 +281,25 @@ if not st.session_state.registered:
                     "professor": professor,
                     "professor_email": professor_email
                 }
+                
                 # Set start time with timezone
                 et_tz = ZoneInfo("America/New_York")
                 st.session_state.start_time = datetime.now(et_tz)
                 
-                # Save registration data
-                save_registration_data(st.session_state.user_data, st.session_state.start_time)
+                # Debug information
+                st.write("Debug - Registration Data:", st.session_state.user_data)
+                st.write("Debug - Start Time:", st.session_state.start_time)
                 
-                # Set registered state
-                st.session_state.registered = True
-                st.rerun()
+                # Save registration data
+                registration_result = save_registration_data(st.session_state.user_data, st.session_state.start_time)
+                
+                if registration_result:
+                    st.success("Registration successful!")
+                    # Set registered state
+                    st.session_state.registered = True
+                    st.rerun()
+                else:
+                    st.error("Registration failed. Please try again or contact support.")
 
 # Function to extract text from different file types
 def extract_text_from_file(file):
