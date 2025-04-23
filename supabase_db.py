@@ -85,4 +85,22 @@ def save_completion(completed, student_id, course_id):
         "completed": completed,
         "timestamp": datetime.now().isoformat()
     }
-    supabase.table("completions").insert(data).execute() 
+    supabase.table("completions").insert(data).execute()
+
+# Get all feedback
+def get_all_feedback():
+    supabase = init_supabase()
+    response = supabase.table("feedback").select("*").execute()
+    return pd.DataFrame(response.data)
+
+# Get all topics
+def get_all_topics():
+    supabase = init_supabase()
+    response = supabase.table("topics").select("*").execute()
+    return pd.DataFrame(response.data)
+
+# Get all completions
+def get_all_completions():
+    supabase = init_supabase()
+    response = supabase.table("completions").select("*").execute()
+    return pd.DataFrame(response.data) 
