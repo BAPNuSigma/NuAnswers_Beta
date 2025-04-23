@@ -11,22 +11,27 @@ def init_supabase():
     return create_client(supabase_url=url, supabase_key=key)
 
 # Save registration data
-def save_registration(user_data, start_time):
-    supabase = init_supabase()
-    data = {
-        "full_name": user_data["full_name"],
-        "student_id": user_data["student_id"],
-        "email": user_data["email"],
-        "grade": user_data["grade"],
-        "campus": user_data["campus"],
-        "major": user_data["major"],
-        "course_name": user_data["course_name"],
-        "course_id": user_data["course_id"],
-        "professor": user_data["professor"],
-        "usage_time_minutes": 0,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-    supabase.table("registrations").insert(data).execute()
+def save_registration(user_data):
+    try:
+        supabase = init_supabase()
+        data = {
+            "full_name": user_data["full_name"],
+            "student_id": user_data["student_id"],
+            "email": user_data["email"],
+            "grade": user_data["grade"],
+            "campus": user_data["campus"],
+            "major": user_data["major"],
+            "course_name": user_data["course_name"],
+            "course_id": user_data["course_id"],
+            "professor": user_data["professor"],
+            "professor_email": user_data["professor_email"],
+            "registration_date": datetime.now().isoformat()
+        }
+        response = supabase.table("registrations").insert(data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        st.error(f"Error saving registration: {str(e)}")
+        return None
 
 # Get all registrations
 def get_all_registrations():
