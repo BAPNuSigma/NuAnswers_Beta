@@ -113,7 +113,7 @@ try:
         fig_daily = px.line(daily_stats, x='Date', y=['Registrations', 'Avg Minutes'],
                            title='Daily Registration and Usage Trends')
         st.plotly_chart(fig_daily, use_container_width=True)
-    
+        
     with tab2:
         # Weekly patterns
         df['day_of_week'] = df['timestamp'].dt.day_name()
@@ -427,13 +427,13 @@ try:
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        # Date filter
-        date_range = st.date_input(
-            "Filter by date range",
-            value=(df['timestamp'].min().date(), df['timestamp'].max().date()),
-            min_value=df['timestamp'].min().date(),
-            max_value=df['timestamp'].max().date()
-        )
+    # Date filter
+    date_range = st.date_input(
+        "Filter by date range",
+        value=(df['timestamp'].min().date(), df['timestamp'].max().date()),
+        min_value=df['timestamp'].min().date(),
+        max_value=df['timestamp'].max().date()
+    )
     
     with col2:
         # Major filter

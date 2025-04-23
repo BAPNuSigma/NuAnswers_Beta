@@ -1,7 +1,7 @@
 import streamlit as st
 from openai import OpenAI
 import pandas as pd
-import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import tempfile
 from pathlib import Path
@@ -12,6 +12,10 @@ import csv
 import xlrd
 import openpyxl
 import io
+import base64
+from zoneinfo import ZoneInfo
+import re
+from supabase_db import save_registration, get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion
 
 # Set page config
 st.set_page_config(
@@ -47,7 +51,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Tutoring hours configuration
+# Tutoring hours configuration (in 24-hour format)
 TUTORING_HOURS = {
     "Monday": [("10:30", "12:30")],    # 10:30 AM - 12:30 PM
     "Tuesday": [("17:00", "19:00")],   # 5:00 PM - 7:00 PM
@@ -58,16 +62,55 @@ TUTORING_HOURS = {
 
 def is_within_tutoring_hours():
     """Check if current time is within tutoring hours."""
-    current_time = datetime.datetime.now()
-    current_day = current_time.strftime("%A")
-    current_time_str = current_time.strftime("%H:%M")
+    # Get current time in Eastern Time
+    et_tz = ZoneInfo("America/New_York")
+    current_time = datetime.now(et_tz)
     
+    current_day = current_time.strftime("%A")
+    current_hour = current_time.hour
+    current_minute = current_time.minute
+    current_time_float = current_hour + (current_minute / 60)
+    
+    # Debug logging with more detailed time information
+    st.session_state.debug_time = {
+        "current_time": current_time.strftime("%I:%M %p"),
+        "current_time_24h": current_time.strftime("%H:%M"),
+        "current_day": current_day,
+        "current_hour": current_hour,
+        "current_minute": current_minute,
+        "current_time_float": current_time_float,
+        "timezone": "Eastern Time (ET)"
+    }
+    
+    # If it's not a tutoring day, return False
     if current_day not in TUTORING_HOURS:
+        st.session_state.debug_time["reason"] = "Not a tutoring day"
         return False
+    
+    # Check each tutoring time slot
+    for start_time_str, end_time_str in TUTORING_HOURS[current_day]:
+        # Convert time strings to float hours (e.g., "13:30" -> 13.5)
+        start_hour, start_minute = map(int, start_time_str.split(":"))
+        end_hour, end_minute = map(int, end_time_str.split(":"))
         
-    for start_time, end_time in TUTORING_HOURS[current_day]:
-        if start_time <= current_time_str <= end_time:
+        start_time_float = start_hour + (start_minute / 60)
+        end_time_float = end_hour + (end_minute / 60)
+        
+        # Add to debug info
+        st.session_state.debug_time.update({
+            "tutoring_start": f"{start_hour:02d}:{start_minute:02d}",
+            "tutoring_end": f"{end_hour:02d}:{end_minute:02d}",
+            "start_time_float": start_time_float,
+            "end_time_float": end_time_float,
+            "is_within": current_time_float >= start_time_float and current_time_float <= end_time_float
+        })
+        
+        # Check if current time is within the tutoring slot
+        if current_time_float >= start_time_float and current_time_float <= end_time_float:
+            st.session_state.debug_time["reason"] = "Within tutoring hours"
             return True
+            
+    st.session_state.debug_time["reason"] = "Outside tutoring hours"
     return False
 
 # Initialize session state for registration and tracking
@@ -83,73 +126,116 @@ if "registration_data" not in st.session_state:
         "major", "course_name", "course_id", "professor", "usage_time_minutes"
     ])
 
-def save_registration(user_data, start_time):
-    """Save registration data to session state DataFrame"""
-    end_time = datetime.datetime.now()
-    usage_time = (end_time - start_time).total_seconds() / 60
-    
-    # Create new registration entry
-    new_registration = {
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "full_name": user_data["full_name"],
-        "student_id": user_data["student_id"],
-        "email": user_data["email"],
-        "grade": user_data["grade"],
-        "campus": user_data["campus"],
-        "major": user_data["major"],
-        "course_name": user_data["course_name"],
-        "course_id": user_data["course_id"],
-        "professor": user_data["professor"],
-        "usage_time_minutes": usage_time
-    }
-    
-    # Add new registration to the DataFrame
-    st.session_state.registration_data = pd.concat([
-        st.session_state.registration_data,
-        pd.DataFrame([new_registration])
-    ], ignore_index=True)
-    
-    # Save to CSV file for persistence
-    try:
-        # Load existing data if file exists
-        csv_path = "registration_data.csv"
-        if os.path.exists(csv_path):
-            existing_data = pd.read_csv(csv_path)
-            combined_data = pd.concat([existing_data, pd.DataFrame([new_registration])], ignore_index=True)
-        else:
-            combined_data = pd.DataFrame([new_registration])
-        
-        # Save combined data back to CSV
-        combined_data.to_csv(csv_path, index=False)
-    except Exception as e:
-        st.error(f"Failed to save registration data: {str(e)}")
+# Configure data directory
+DATA_DIR = Path("/data" if os.path.exists("/data") else ".")
+REGISTRATION_DATA_PATH = DATA_DIR / "registration_data.csv"
+FEEDBACK_DATA_PATH = DATA_DIR / "feedback_data.csv"
+TOPIC_DATA_PATH = DATA_DIR / "topic_data.csv"
+COMPLETION_DATA_PATH = DATA_DIR / "completion_data.csv"
+
+# Create data directory if it doesn't exist
+DATA_DIR.mkdir(exist_ok=True)
+
+def save_registration_data(user_data, start_time):
+    """Save registration data to Supabase"""
+    save_registration(user_data, start_time)
+
+def save_feedback_data(rating, topic, difficulty):
+    """Save feedback data to Supabase"""
+    save_feedback(
+        rating=rating,
+        topic=topic,
+        difficulty=difficulty,
+        student_id=st.session_state.user_data.get("student_id"),
+        course_id=st.session_state.user_data.get("course_id")
+    )
+
+def track_topic_data(topic, difficulty=None):
+    """Track topic data in Supabase"""
+    save_topic(
+        topic=topic,
+        difficulty=difficulty,
+        student_id=st.session_state.user_data.get("student_id"),
+        course_id=st.session_state.user_data.get("course_id")
+    )
+
+def track_completion_data(completed):
+    """Track completion data in Supabase"""
+    save_completion(
+        completed=completed,
+        student_id=st.session_state.user_data.get("student_id"),
+        course_id=st.session_state.user_data.get("course_id")
+    )
 
 # Create a sidebar
 with st.sidebar:
     st.title("📚 NuAnswers")
+
+# Initialize session state for form
+if "form_major" not in st.session_state:
+    st.session_state.form_major = "Accounting"
+
+def update_major():
+    """Update the major in session state"""
+    st.session_state.form_major = st.session_state.temp_major
+    st.rerun()
 
 # Registration form
 if not st.session_state.registered:
     st.title("📝 Registration Form")
     st.write("Please complete the registration form to use NuAnswers.")
     
-    with st.form("registration_form"):
+    with st.form("registration_form", clear_on_submit=False):
         full_name = st.text_input("Full Name")
-        student_id = st.text_input("FDU Student ID")
-        email = st.text_input("FDU Student Email")
+        student_id = st.text_input("FDU Student ID (7 digits)")
+        
+        # Validate student ID format
+        is_valid_student_id = student_id.isdigit() and len(student_id) == 7
+        if student_id and not is_valid_student_id:
+            st.error("FDU Student ID must be exactly 7 digits.")
+            
+        email = st.text_input("FDU Student Email (@student.fdu.edu or @fdu.edu)")
+        
+        # Validate email domain
+        is_valid_email = False
+        if email:
+            email = email.lower()
+            is_valid_email = email.endswith('@student.fdu.edu') or email.endswith('@fdu.edu')
+            if not is_valid_email:
+                st.error("Please use your FDU email address (@student.fdu.edu or @fdu.edu)")
+        
         grade = st.selectbox("Grade", ["Freshman", "Sophomore", "Junior", "Senior", "Graduate"])
         campus = st.selectbox("Campus", ["Florham", "Metro", "Vancouver"])
-        major = st.selectbox("Major", ["Accounting", "Finance", "MIS [Management Information Systems]"])
         
-        # Course-specific questions based on major
-        if major == "Accounting":
-            course_name = st.text_input("Which Accounting class are you taking that relates to what you need help in?")
-        if major == "Finance":
-            course_name = st.text_input("Which Finance class are you taking that relates to what you need help in?")
-        if major == "MIS [Management Information Systems]":
-            course_name = st.text_input("Which MIS class are you taking that relates to what you need help in?")
+        # Major selection
+        major = st.selectbox(
+            "Major",
+            ["Accounting", "Finance", "MIS [Management Information Systems]"]
+        )
         
-        course_id = st.text_input("Course ID (EX: ACCT_####_##)")
+        # General course question
+        course_name = st.text_input("Which class are you taking that relates to what you need help in?")
+        
+        # Course ID with validation
+        course_id = st.text_input("Course ID (Format: DEPT_####_##)", help="Examples: ACCT_2021_01, FIN_3250_02")
+        
+        # Validate course ID format
+        is_valid_course_id = False
+        if course_id:
+            valid_prefixes = ['ACCT', 'ECON', 'FIN', 'MIS', 'WMA']
+            pattern = f"^({'|'.join(valid_prefixes)})_\\d{{4}}_\\d{{2}}$"
+            is_valid_course_id = bool(re.match(pattern, course_id))
+            if not is_valid_course_id:
+                st.error("""
+                Invalid Course ID format. Please use one of the following formats:
+                - ACCT_####_##
+                - ECON_####_##
+                - FIN_####_##
+                - MIS_####_##
+                - WMA_####_##
+                Where # represents a digit.
+                """)
+        
         professor = st.text_input("Professor's Name")
         
         submitted = st.form_submit_button("Submit")
@@ -157,6 +243,12 @@ if not st.session_state.registered:
         if submitted:
             if not all([full_name, student_id, email, course_id, professor]):
                 st.error("Please fill in all required fields.")
+            elif not is_valid_student_id:
+                st.error("Please enter a valid 7-digit FDU Student ID.")
+            elif not is_valid_email:
+                st.error("Please enter a valid FDU email address.")
+            elif not is_valid_course_id:
+                st.error("Please enter a valid Course ID format.")
             else:
                 # Save user data
                 st.session_state.user_data = {
@@ -170,10 +262,12 @@ if not st.session_state.registered:
                     "course_id": course_id,
                     "professor": professor
                 }
-                st.session_state.start_time = datetime.datetime.now()
+                # Set start time with timezone
+                et_tz = ZoneInfo("America/New_York")
+                st.session_state.start_time = datetime.now(et_tz)
                 
                 # Save registration data
-                save_registration(st.session_state.user_data, st.session_state.start_time)
+                save_registration_data(st.session_state.user_data, st.session_state.start_time)
                 
                 # Set registered state
                 st.session_state.registered = True
@@ -280,6 +374,10 @@ if st.session_state.registered:
     
     # Check if current time is within tutoring hours
     if is_within_tutoring_hours():
+        # Show debug information in an expander
+        with st.expander("Debug Time Information"):
+            st.json(st.session_state.debug_time)
+            
         st.warning("""
         ⚠️ In-person tutoring is currently available! 
         
@@ -319,22 +417,39 @@ if st.session_state.registered:
     # File upload section
     st.subheader("📄 Upload Course Materials")
     uploaded_files = st.file_uploader(
-        "Upload your course materials (PDF, DOCX, TXT, PPTX, CSV, XLS, XLSX)",
-        type=['pdf', 'docx', 'txt', 'pptx', 'csv', 'xls', 'xlsx'],
+        "Upload your course materials (PDF, DOCX, TXT, PPTX, CSV, XLS, XLSX, PNG, JPG, JPEG)",
+        type=['pdf', 'docx', 'txt', 'pptx', 'csv', 'xls', 'xlsx', 'png', 'jpg', 'jpeg'],
         accept_multiple_files=True
     )
     
     if uploaded_files:
         for file in uploaded_files:
             if file not in [doc['file'] for doc in st.session_state.uploaded_documents]:
-                text = extract_text_from_file(file)
-                if text:
+                file_extension = Path(file.name).suffix.lower()
+                
+                # Handle image files differently
+                if file_extension in ['.png', '.jpg', '.jpeg']:
+                    # Analyze image content
+                    image_analysis = analyze_image(file)
+                    
                     st.session_state.uploaded_documents.append({
                         'file': file,
                         'name': file.name,
-                        'content': text
+                        'content': f"[Image Analysis: {image_analysis}]" if image_analysis else f"[Image File: {file.name}]",
+                        'is_image': True,
+                        'image_analysis': image_analysis
                     })
-                    st.success(f"Successfully processed {file.name}")
+                    st.success(f"Successfully uploaded and analyzed image {file.name}")
+                else:
+                    text = extract_text_from_file(file)
+                    if text:
+                        st.session_state.uploaded_documents.append({
+                            'file': file,
+                            'name': file.name,
+                            'content': text,
+                            'is_image': False
+                        })
+                        st.success(f"Successfully processed {file.name}")
     
     # Search and document management section
     if st.session_state.uploaded_documents:
@@ -380,23 +495,29 @@ if st.session_state.registered:
             for i, doc in enumerate(filtered_docs):
                 cols = st.columns([4, 1])
                 with cols[0].expander(doc['name']):
-                    # Highlight search terms in content
-                    content = doc['content']
-                    if st.session_state.search_query:
-                        query = st.session_state.search_query.lower()
-                        start = content.lower().find(query)
-                        if start != -1:
-                            end = start + len(query)
-                            highlighted = (
-                                content[:start] +
-                                f"**{content[start:end]}**" +
-                                content[end:]
-                            )
-                            st.markdown(highlighted)
+                    if doc.get('is_image', False):
+                        st.image(doc['file'], caption=doc['name'])
+                        if doc.get('image_analysis'):
+                            st.markdown("**Image Analysis:**")
+                            st.markdown(doc['image_analysis'])
+                    else:
+                        # Highlight search terms in content
+                        content = doc['content']
+                        if st.session_state.search_query:
+                            query = st.session_state.search_query.lower()
+                            start = content.lower().find(query)
+                            if start != -1:
+                                end = start + len(query)
+                                highlighted = (
+                                    content[:start] +
+                                    f"**{content[start:end]}**" +
+                                    content[end:]
+                                )
+                                st.markdown(highlighted)
+                            else:
+                                st.text(content[:500] + "..." if len(content) > 500 else content)
                         else:
                             st.text(content[:500] + "..." if len(content) > 500 else content)
-                    else:
-                        st.text(content[:500] + "..." if len(content) > 500 else content)
                 
                 # Delete button with confirmation
                 if cols[1].button("🗑️", key=f"delete_{i}"):
@@ -488,7 +609,7 @@ Example of bad tutoring:
     # Add a logout button
     if st.button("Logout"):
         # Save final usage data before logout
-        save_registration(st.session_state.user_data, st.session_state.start_time)
+        save_registration_data(st.session_state.user_data, st.session_state.start_time)
         
         # Reset session state
         st.session_state.registered = False
@@ -496,6 +617,31 @@ Example of bad tutoring:
         st.session_state.user_data = {}
         st.session_state.messages = []
         st.rerun()
+
+    # Add feedback section after chat
+    if st.session_state.messages and len(st.session_state.messages) > 0:
+        st.divider()
+        st.subheader("📝 Session Feedback")
+        
+        feedback_col1, feedback_col2, feedback_col3 = st.columns(3)
+        
+        with feedback_col1:
+            topic = st.text_input("What topic did you discuss?", key="feedback_topic")
+        
+        with feedback_col2:
+            rating = st.slider("How helpful was this session?", 1, 5, 3, key="feedback_rating")
+        
+        with feedback_col3:
+            difficulty = st.slider("How difficult was the topic?", 1, 5, 3, key="feedback_difficulty")
+        
+        if st.button("Submit Feedback"):
+            if topic:
+                save_feedback_data(rating, topic, difficulty)
+                track_topic_data(topic, difficulty)
+                track_completion_data(True)
+                st.success("Thank you for your feedback!")
+            else:
+                st.warning("Please enter the topic discussed.")
 
 def show_admin_panel():
     """Display admin panel with registration statistics"""
@@ -536,3 +682,42 @@ def show_admin_panel():
             st.info("No registration data available yet.")
     except Exception as e:
         st.error(f"Error loading registration data: {str(e)}")
+
+# Initialize session state for feedback and topic tracking
+if "feedback_data" not in st.session_state:
+    st.session_state.feedback_data = []
+if "topic_data" not in st.session_state:
+    st.session_state.topic_data = []
+if "completion_data" not in st.session_state:
+    st.session_state.completion_data = []
+
+def encode_image_to_base64(file):
+    """Convert uploaded image file to base64 string"""
+    return base64.b64encode(file.getvalue()).decode('utf-8')
+
+def analyze_image(file):
+    """Analyze image content using OpenAI's GPT-4 Vision model"""
+    try:
+        base64_image = encode_image_to_base64(file)
+        
+        response = client.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Please analyze this image in the context of accounting, finance, or business studies. Describe any relevant equations, problems, charts, or concepts shown."},
+                        {
+                            "type": "image_url",
+                            "image_url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"Error analyzing image: {str(e)}")
+        return None
