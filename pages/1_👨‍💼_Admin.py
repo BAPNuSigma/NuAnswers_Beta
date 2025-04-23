@@ -99,18 +99,25 @@ try:
         for sheet_name, data_df in all_data.items():
             if not data_df.empty:
                 data_df.to_excel(writer, sheet_name=sheet_name, index=False)
+            else:
+                # Create an empty DataFrame with the same columns
+                empty_df = pd.DataFrame(columns=data_df.columns)
+                empty_df.to_excel(writer, sheet_name=sheet_name, index=False)
     
     with download_col1:
         # Download individual CSVs
         for name, data_df in all_data.items():
             if not data_df.empty:
                 csv_data = data_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label=f"Download {name} (CSV)",
-                    data=csv_data,
-                    file_name=f"nuanswers_{name.lower().replace(' ', '_')}.csv",
-                    mime="text/csv"
-                )
+            else:
+                # Create an empty CSV with headers
+                csv_data = pd.DataFrame(columns=data_df.columns).to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label=f"Download {name} (CSV)",
+                data=csv_data,
+                file_name=f"nuanswers_{name.lower().replace(' ', '_')}.csv",
+                mime="text/csv"
+            )
     
     with download_col2:
         # Download combined Excel file
