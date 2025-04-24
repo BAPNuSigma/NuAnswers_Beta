@@ -15,7 +15,7 @@ import io
 import base64
 from zoneinfo import ZoneInfo
 import re
-from supabase_db import get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data, get_all_feedback, get_all_topics, get_all_completions
+from supabase_db import get_all_registrations, get_filtered_registrations, save_feedback, save_topic, save_completion, save_registration_data, get_all_feedback, get_all_topics, get_all_completions, save_api_usage, get_api_usage_summary, get_credit_balance, update_credit_balance
 
 # Set page config
 st.set_page_config(
@@ -691,18 +691,86 @@ Example of bad tutoring:
             stream=True,
         )
 
+        # Track API usage
+        input_tokens = sum(len(m["content"].split()) * 1.3 for m in st.session_state.messages)  # Approximate
+        output_tokens = 0
+        response_text = ""
+        
         # Stream the response
         with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    response_text += chunk.choices[0].delta.content
+                    output_tokens += len(chunk.choices[0].delta.content.split()) * 1.3  # Approximate
+                    st.write(chunk.choices[0].delta.content, end="")
+        
+        # Save API usage
+        save_api_usage(
+            input_tokens=int(input_tokens),
+            output_tokens=int(output_tokens),
+            model="gpt-3.5-turbo"
+        )
+        
+        st.session_state.messages.append({"role": "assistant", "content": response_text})
 
     # Only show the logout button in the main interface
     if st.button("Logout"):
         handle_logout()
 
 def show_admin_panel():
-    """Display admin panel with registration statistics"""
+    """Display admin panel with registration statistics and API usage"""
     st.header("👨‍💼 Administrator Dashboard")
+    
+    # Add date range selector for API usage
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Start Date", value=datetime.now().date() - timedelta(days=30))
+    with col2:
+        end_date = st.date_input("End Date", value=datetime.now().date())
+    
+    # Get API usage data
+    df, total_input_tokens, total_output_tokens, total_cost, model_usage = get_api_usage_summary(
+        start_date=datetime.combine(start_date, datetime.min.time()),
+        end_date=datetime.combine(end_date, datetime.max.time())
+    )
+    
+    # Get current credit balance
+    current_balance = get_credit_balance()
+    
+    # API Usage Section
+    st.subheader("📊 API Usage & Costs")
+    
+    # Display metrics in columns
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Input Tokens", f"{total_input_tokens:,}")
+    with col2:
+        st.metric("Total Output Tokens", f"{total_output_tokens:,}")
+    with col3:
+        st.metric("Total Cost", f"${total_cost:.2f}")
+    with col4:
+        st.metric("Remaining Balance", f"${current_balance:.2f}")
+    
+    # Model-specific usage
+    st.subheader("Model Usage Breakdown")
+    for model, usage in model_usage.items():
+        with st.expander(f"{model} Usage"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Input Tokens", f"{usage['input_tokens']:,}")
+            with col2:
+                st.metric("Output Tokens", f"{usage['output_tokens']:,}")
+            with col3:
+                st.metric("Total Cost", f"${usage['total_cost']:.2f}")
+    
+    # Update credit balance
+    st.subheader("Update Credit Balance")
+    new_balance = st.number_input("New Balance ($)", value=current_balance, step=10.0)
+    if st.button("Update Balance"):
+        if update_credit_balance(new_balance):
+            st.success("Credit balance updated successfully!")
+            st.rerun()
     
     try:
         # Get registration data
