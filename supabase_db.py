@@ -164,4 +164,114 @@ def get_all_completions():
     df = pd.DataFrame(response.data)
     if not df.empty and 'timestamp' in df.columns:
         df['timestamp'] = pd.to_datetime(df['timestamp'])
-    return df 
+    return df
+
+# OpenAI pricing as of 2025 (in USD per 1M tokens)
+MODEL_PRICING = {
+    "gpt-3.5-turbo": {
+        "input": 0.50,
+        "output": 1.50
+    },
+    "gpt-4": {
+        "input": 30.00,
+        "output": 60.00
+    },
+    "gpt-4-turbo": {
+        "input": 10.00,
+        "output": 30.00
+    }
+}
+
+def save_api_usage(input_tokens, output_tokens, model="gpt-3.5-turbo"):
+    """Save API usage data to Supabase"""
+    try:
+        supabase = init_supabase()
+        if not supabase:
+            st.error("Failed to initialize Supabase client")
+            return None
+
+        # Calculate cost based on model
+        input_cost = (input_tokens / 1000000) * MODEL_PRICING[model]["input"]
+        output_cost = (output_tokens / 1000000) * MODEL_PRICING[model]["output"]
+        total_cost = input_cost + output_cost
+
+        data = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "model": model,
+            "input_cost": input_cost,
+            "output_cost": output_cost,
+            "total_cost": total_cost,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        response = supabase.table("api_usage").insert(data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        st.error(f"Error saving API usage: {str(e)}")
+        return None
+
+def get_api_usage_summary(start_date=None, end_date=None):
+    """Get summary of API usage and costs with date filtering"""
+    try:
+        supabase = init_supabase()
+        query = supabase.table("api_usage").select("*")
+        
+        if start_date:
+            query = query.gte("timestamp", start_date.isoformat())
+        if end_date:
+            query = query.lte("timestamp", end_date.isoformat())
+            
+        response = query.execute()
+        df = pd.DataFrame(response.data)
+        
+        if df.empty:
+            return pd.DataFrame(), 0, 0, 0, 0, {}
+        
+        # Convert timestamps
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+        
+        # Calculate totals
+        total_input_tokens = df['input_tokens'].sum()
+        total_output_tokens = df['output_tokens'].sum()
+        total_cost = df['total_cost'].sum()
+        
+        # Calculate usage by model
+        model_usage = df.groupby('model').agg({
+            'input_tokens': 'sum',
+            'output_tokens': 'sum',
+            'total_cost': 'sum'
+        }).to_dict('index')
+        
+        return df, total_input_tokens, total_output_tokens, total_cost, model_usage
+    except Exception as e:
+        st.error(f"Error retrieving API usage: {str(e)}")
+        return pd.DataFrame(), 0, 0, 0, 0, {}
+
+def get_credit_balance():
+    """Get the current credit balance"""
+    try:
+        supabase = init_supabase()
+        response = supabase.table("credit_balance").select("*").order("timestamp", desc=True).limit(1).execute()
+        
+        if not response.data:
+            return 0.0
+            
+        return float(response.data[0]['balance'])
+    except Exception as e:
+        st.error(f"Error retrieving credit balance: {str(e)}")
+        return 0.0
+
+def update_credit_balance(new_balance):
+    """Update the credit balance"""
+    try:
+        supabase = init_supabase()
+        data = {
+            "balance": new_balance,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        response = supabase.table("credit_balance").insert(data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        st.error(f"Error updating credit balance: {str(e)}")
+        return None 
